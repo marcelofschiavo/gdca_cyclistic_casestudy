@@ -1,0 +1,205 @@
+Case Study Roadmap
+
+Design marketing strategies aimed at converting casual riders into annual members
+
+1. Ask
+
+1.1 Identify the business task
+Questions: 
+	1. How do annual members and casual riders use Cyclistic bikes differently?
+	2. Why would casual riders buy Cyclistic annual memberships?
+	3. How can Cyclistic use digital media to influence casual riders to become members?
+
+Business Tasks:
+	1. Analyse the patterns and behaviors of annual members and casual riders of Cyclicist bikes from June 2022 to May 2023;
+	2. Identifying the key features and benefits of Cyclistic annual memberships that attract casual riders;
+	3. Assessing the marketing channels and strategies used to target casual riders.
+
+1.2 Consider key stakeholders
+	1. Cyclistic, bike-share program
+	2. Lily Moreno, director of marketing
+	3. Cyclistic marketing analytics team
+	4. Cyclistic executive team
+
+2. Prepare
+
+2.1 Data ROCCCs:
+	1. is credible, aparently collected automatically via Cyclist system, but with null values
+	2. is reliable, downloaded from the source site
+	https://divvy-tripdata.s3.amazonaws.com/index.html
+	3. is original
+	4. is comprehensive, have the information needed, althought not directly related to the user_id
+	5. is current, from may 2023 backwards
+	6. is cited, used in other projects
+
+2.2 Data Storage and Credibility
+	1. The data was downloaded and stored in Google Cloud Plataform's Big Query and manipulated with SQL, with a changelog to follow. 
+	2. The data has enough columns to provide insights and solutions to the business tasks.
+	3. The data range from june 2022 to may 2023. 
+	
+3. Process
+
+3.1 Tools
+	Used Big Query to manipulate the data, R and Tableau to create visualizations, considered the main tools in Data Analytics, and that provide fast paced workflow.
+	
+3.2 Adjustments:
+	1. Considering the import of data in GCP, runned queries to process the data.
+	
+	2. query to create column names
+ALTER TABLE table_name
+ADD COLUMN ride_duration INTERVAL,
+ADD COLUMN day_of_week INT;
+
+	3. query to insert values into columns
+UPDATE 
+  `cyclist-portfolio-392022.cyclist_portfolio.cyclist_202303`
+SET
+  ride_duration = CAST(SUBSTRING(CAST((ended_at - started_at) AS STRING),7) AS INTERVAL),
+  day_of_week = EXTRACT(DAYOFWEEK FROM started_at)
+WHERE
+  1 = 1;
+
+	4. query to create compiled table from all months
+
+CREATE TABLE cyclist_portfolio.cyclist_12months_compiled AS
+SELECT *
+FROM cyclist_portfolio.cyclist_202206
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202207
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202208
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202209
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202210
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202211
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202212
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202301
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202302
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202303
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202304
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202305;
+
+	5. query to change null values to N/A
+UPDATE cyclist_portfolio.cyclist_12months_compiled
+SET rideable_type = COALESCE(rideable_type, 'N/A'),
+    start_station_name = COALESCE(start_station_name, 'N/A'),
+    end_station_name = COALESCE(end_station_name, 'N/A')
+where
+  1 = 1
+  
+4. Analyze:
+
+4. 1. Discoveries
+	1. The data was queried in various ways to provide insights, and visualization of trends and patterns.
+	
+	2. query to summarize by ride count and duration average:
+
+SELECT
+  AVG(CASE WHEN member_casual = 'member' THEN ride_duration END) AS avg_ride_duration_member,
+  AVG(CASE WHEN member_casual = 'casual' THEN ride_duration END) AS avg_ride_duration_casual,
+  COUNT(CASE WHEN member_casual = 'casual' THEN ride_id END) AS count_ride_casual,
+  COUNT(CASE WHEN member_casual = 'member' THEN ride_id END) AS count_ride_member,
+FROM
+  `cyclist_portfolio.cyclist_12months_compiled`
+  
+	3. query to summarize rides by lnt and lng by casual riders from geopoints with more than 1k rides 
+
+SELECT
+		COUNT(*) AS ride_count,
+    start_lng,
+    start_lat,
+		start_station_name,
+		AVG(CASE WHEN member_casual = 'casual' THEN ride_duration END) AS avg_ride_duration_casual
+FROM
+    cyclist_portfolio.cyclist_12months_compiled
+WHERE
+		member_casual = "casual"
+GROUP BY
+    start_lng,
+    start_lat,
+		start_station_name
+HAVING 
+		ride_count > 1000
+ORDER BY
+		ride_count DESC
+
+	4. query to count the total rides by casuals for geopoints with more than 1k rides 
+
+SELECT
+    SUM(ride_count) AS total_ride_count
+FROM (
+SELECT
+		COUNT(*) AS ride_count,
+    start_lng,
+    start_lat,
+		start_station_name,
+		AVG(CASE WHEN member_casual = 'casual' THEN ride_duration END) AS avg_ride_duration_casual
+FROM
+    cyclist_portfolio.cyclist_12months_compiled
+WHERE
+		member_casual = "casual"
+GROUP BY
+    start_lng,
+    start_lat,
+		start_station_name
+HAVING 
+		ride_count > 1000
+ORDER BY
+		ride_count DESC
+)
+
+	5. query to retrieve redieable_type
+
+SELECT
+  rideable_type,
+  SUM(CASE WHEN member_casual = 'casual' THEN 1 ELSE 0 END) AS sum_rides_casual,
+  SUM(CASE WHEN member_casual = 'member' THEN 1 ELSE 0 END) AS sum_rides_member
+FROM
+  cyclist_portfolio.cyclist_12months_compiled
+GROUP BY
+  rideable_type;
+  
+4.6. Understandings
+	1. From June 2022 to May 2023, casual riders spent 126.2% longer in their rides with 34.3% less rides started, compared to member riders
+	2. In the same timespan, 0.04% of the geopoints accounted for 47.98% of the rides started by casual riders.
+	3. From November to March, casual riders rode under a fifth (17.7%) of their average, while member riders maintained nearly half (43.4%).
+
+4.7 Conclusions:
+	1. Casual riders ride longer but less frequently and in specific geopoints;
+	2. November to March are not commonly used by casual riders;
+	3. Electric bikes are prefered by casual riders;
+	4. During at least half of the year, casual riders maintain the same usage pace as member riders.
+
+5. Share:
+
+The visualizations done in Tableau and R are both very useful, but the dashboard in Tableau provides more control to the user and interactivity.
+The visualizations on R lack the same beauty but provide precise insights.
+
+6. Act
+	6.1 Recommendations
+	1. Focus marketing media strategies on specific geopoints that attract casual riders, with better infrastructure and offering incentives for membership, considering they have the same usage pace of members;
+	2. Promote the use of electric bikes, preferred by casual riders, highlighting its benefits, in marketing materials and offering special promotions or discounts for electric bike rentals;
+	3. Intensify marketing efforts, from April to October, more favorable for outdoor activities, with targeted advertising campaigns, social media promotions, and partnerships with local events or organizations.
+	4. To gain a comprehensive understanding, it is advisable to collect and analyze additional data, particularly by tracing the usage history of individual casual riders and incorporating external data sources.
+
+6.2 Appendix
+A link to Github was provided to give access to source files.
