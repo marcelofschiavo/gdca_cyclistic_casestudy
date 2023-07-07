@@ -1,0 +1,124 @@
+2. query to insert values into columns
+UPDATE 
+  `cyclist-portfolio-392022.cyclist_portfolio.cyclist_202303`
+SET
+  ride_duration = CAST(SUBSTRING(CAST((ended_at - started_at) AS STRING),7) AS INTERVAL),
+  day_of_week = EXTRACT(DAYOFWEEK FROM started_at)
+WHERE
+  1 = 1;
+
+3. query to create compiled table from all months
+
+CREATE TABLE cyclist_portfolio.cyclist_12months_compiled AS
+SELECT *
+FROM cyclist_portfolio.cyclist_202206
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202207
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202208
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202209
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202210
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202211
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202212
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202301
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202302
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202303
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202304
+UNION ALL
+SELECT *
+FROM cyclist_portfolio.cyclist_202305;
+
+4. query to change null values to N/A
+UPDATE cyclist_portfolio.cyclist_12months_compiled
+SET rideable_type = COALESCE(rideable_type, 'N/A'),
+    start_station_name = COALESCE(start_station_name, 'N/A'),
+    end_station_name = COALESCE(end_station_name, 'N/A')
+where
+  1 = 1
+  
+ANALYZE:
+
+5. query to summarize by ride count and duration average:
+
+SELECT
+  AVG(CASE WHEN member_casual = 'member' THEN ride_duration END) AS avg_ride_duration_member,
+  AVG(CASE WHEN member_casual = 'casual' THEN ride_duration END) AS avg_ride_duration_casual,
+  COUNT(CASE WHEN member_casual = 'casual' THEN ride_id END) AS count_ride_casual,
+  COUNT(CASE WHEN member_casual = 'member' THEN ride_id END) AS count_ride_member,
+FROM
+  `cyclist_portfolio.cyclist_12months_compiled`
+  
+6. query to summarize rides by lnt and lng by casual riders from geopoints with more than 1k rides 
+
+SELECT
+		COUNT(*) AS ride_count,
+    start_lng,
+    start_lat,
+		start_station_name,
+		AVG(CASE WHEN member_casual = 'casual' THEN ride_duration END) AS avg_ride_duration_casual
+FROM
+    cyclist_portfolio.cyclist_12months_compiled
+WHERE
+		member_casual = "casual"
+GROUP BY
+    start_lng,
+    start_lat,
+		start_station_name
+HAVING 
+		ride_count > 1000
+ORDER BY
+		ride_count DESC
+
+7. query to count the total rides by casuals for geopoints with more than 1k rides 
+
+SELECT
+    SUM(ride_count) AS total_ride_count
+FROM (
+SELECT
+		COUNT(*) AS ride_count,
+    start_lng,
+    start_lat,
+		start_station_name,
+		AVG(CASE WHEN member_casual = 'casual' THEN ride_duration END) AS avg_ride_duration_casual
+FROM
+    cyclist_portfolio.cyclist_12months_compiled
+WHERE
+		member_casual = "casual"
+GROUP BY
+    start_lng,
+    start_lat,
+		start_station_name
+HAVING 
+		ride_count > 1000
+ORDER BY
+		ride_count DESC
+)
+
+8. query to retrieve redieable_type
+
+SELECT
+  rideable_type,
+  SUM(CASE WHEN member_casual = 'casual' THEN 1 ELSE 0 END) AS sum_rides_casual,
+  SUM(CASE WHEN member_casual = 'member' THEN 1 ELSE 0 END) AS sum_rides_member
+FROM
+  cyclist_portfolio.cyclist_12months_compiled
+GROUP BY
+  rideable_type;
